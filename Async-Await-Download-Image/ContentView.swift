@@ -21,8 +21,8 @@ struct ContentView: View {
           .frame(width: 300, height: 300)
       }
     }
-    .onAppear {
-      viewModel.fetchImageCombine()
+    .task {
+      await viewModel.fetchImageAsync()
     }
   }
 }
@@ -60,6 +60,16 @@ extension ContentView {
         })
         .store(in: &cancellable)
     }
+    
+    @MainActor
+    func fetchImageAsync() async {
+      do {
+        self.image = try await loader.downloadImageAsync()
+      } catch {
+        print("❌", error.localizedDescription)
+      }
+    }
+    
   }
 }
 
@@ -87,6 +97,11 @@ class ImageDownloader {
       completionHandler(self?.handleResponse(data: data, response: response), error)
       
     }.resume()
+  }
+  
+  func downloadImageAsync() async throws -> UIImage? {
+    let (data, response) = try await URLSession.shared.data(from: url)
+    return self.handleResponse(data: data, response: response)
   }
   
   func handleResponse(data: Data?, response: URLResponse?) -> UIImage? {
