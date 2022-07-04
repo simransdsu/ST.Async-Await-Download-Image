@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 struct ContentView: View {
   
@@ -21,7 +22,7 @@ struct ContentView: View {
       }
     }
     .onAppear {
-      viewModel.fetchImage()
+      viewModel.fetchImageCombine()
     }
   }
 }
@@ -32,6 +33,8 @@ extension ContentView {
     
     @Published var image: UIImage? = nil
     let loader = ImageDownloader()
+    
+    private var cancellable = Set<AnyCancellable>()
     
     func fetchImage() {
       loader.downloadEscaping { [weak self] image, error in
@@ -46,6 +49,17 @@ extension ContentView {
         }
       }
     }
+    
+    func fetchImageCombine() {
+      loader.downloadWithCombine()
+        .receive(on: DispatchQueue.main)
+        .sink(receiveCompletion: { _ in
+          
+        }, receiveValue: { [weak self] image in
+          self?.image = image
+        })
+        .store(in: &cancellable)
+    }
   }
 }
 
@@ -53,6 +67,18 @@ extension ContentView {
 class ImageDownloader {
   
   let url = URL(string: "https://cdn.pixabay.com/photo/2022/06/21/21/56/konigssee-7276585_960_720.jpg")!
+  
+  func downloadWithCombine() -> AnyPublisher<UIImage?, Error> {
+    
+    URLSession.shared.dataTaskPublisher(for: url)
+      .map { [weak self] (data: Data, response: URLResponse) in
+        return self?.handleResponse(data: data, response: response)
+      }
+      .mapError({ urlError in
+        urlError
+      })
+      .eraseToAnyPublisher()
+  }
   
   func downloadEscaping(completionHandler: @escaping (_ image: UIImage?, _ error: Error?) -> Void) {
     URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
