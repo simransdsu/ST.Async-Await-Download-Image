@@ -8,14 +8,75 @@
 import SwiftUI
 
 struct ContentView: View {
-    var body: some View {
-        Text("Hello, world!")
-            .padding()
+  
+  @StateObject var viewModel = ViewModel()
+  
+  var body: some View {
+    ZStack {
+      if let image = viewModel.image {
+        Image(uiImage: image)
+          .resizable()
+          .scaledToFit()
+          .frame(width: 300, height: 300)
+      }
     }
+    .onAppear {
+      viewModel.fetchImage()
+    }
+  }
+}
+
+
+extension ContentView {
+  class ViewModel: ObservableObject {
+    
+    @Published var image: UIImage? = nil
+    let loader = ImageDownloader()
+    
+    func fetchImage() {
+      loader.downloadEscaping { [weak self] image, error in
+        if let image = image {
+          
+          DispatchQueue.main.async {
+            self?.image = image
+          }
+        } else {
+          
+          print("❌", error?.localizedDescription)
+        }
+      }
+    }
+  }
+}
+
+
+class ImageDownloader {
+  
+  let url = URL(string: "https://cdn.pixabay.com/photo/2022/06/21/21/56/konigssee-7276585_960_720.jpg")!
+  
+  func downloadEscaping(completionHandler: @escaping (_ image: UIImage?, _ error: Error?) -> Void) {
+    URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+      
+      
+      completionHandler(self?.handleResponse(data: data, response: response), error)
+      
+    }.resume()
+  }
+  
+  func handleResponse(data: Data?, response: URLResponse?) -> UIImage? {
+    guard let data = data,
+          let image = UIImage(data: data),
+          let response = response as? HTTPURLResponse,
+          response.statusCode == 200 else {
+      return nil
+    }
+    
+    return image
+  }
 }
 
 struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
-    }
+  static var previews: some View {
+    ContentView()
+  }
 }
